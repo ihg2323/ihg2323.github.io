@@ -82,7 +82,7 @@ function showMainApp() {
 
 // 슈퍼 관리자 패널 표시
 function showAdminPanelIfNeeded() {
-    const nav = document.querySelector('.nav');
+    const nav = document.querySelector('.nav-items');
     if (!nav) return;
     
     // 기존 관리자 버튼 제거
@@ -93,17 +93,11 @@ function showAdminPanelIfNeeded() {
     
     // 슈퍼 관리자인 경우 버튼 추가
     if (isSuperAdmin()) {
-        const adminBtn = document.createElement('div');
+        const adminBtn = document.createElement('button');
         adminBtn.className = 'nav-item';
         adminBtn.dataset.view = 'admin';
-        adminBtn.innerHTML = `
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
-            </svg>
-            <span>관리자</span>
-        `;
+        adminBtn.title = '관리자';
+        adminBtn.textContent = '🔐';
         nav.appendChild(adminBtn);
         
         // 관리자 패널 클릭 이벤트
