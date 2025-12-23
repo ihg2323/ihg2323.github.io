@@ -629,7 +629,9 @@ async function openChat(peerId, peerData) {
 
     document.getElementById('chatArea').innerHTML = `
         ${headerHtml}
-        <div class="messages-container" id="messagesContainer" style="display: flex; flex-direction: column; overflow-y: auto;"></div>
+        <div class="messages-container" id="messagesContainer" style="display: flex; flex-direction: column; overflow-y: auto;">
+            <div class="date-divider"><span>메시지 불러오는 중...</span></div>
+        </div>
         <div class="input-area">
             <div class="input-wrapper">
                 <div class="input-actions"></div>
@@ -657,14 +659,6 @@ async function openChat(peerId, peerData) {
         groupNameHeader?.addEventListener('click', () => {
             openGroupInfo(groupId);
         });
-    }
-
-    // 즉시 로딩 인디케이터 표시 (빈 화면 방지)
-    const messagesContainer = document.getElementById('messagesContainer');
-    if (messagesContainer) {
-        messagesContainer.innerHTML = '<div class="date-divider"><span>메시지 불러오는 중...</span></div>';
-        // 미리 스크롤을 맨 아래로
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
     // setup emoji panel, file input handlers, message input
@@ -988,22 +982,18 @@ async function loadMessages() {
         const messagesContainer = document.getElementById('messagesContainer');
         if (!messagesContainer) return;
         
-        // 이전 스크롤 위치 저장 (새 메시지가 추가되는 경우)
-        const wasAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 100;
-        
-        messagesContainer.innerHTML = '';
-        
+        // 데이터가 없으면 바로 처리
         if (!snapshot.exists()) {
             messagesContainer.innerHTML = `
                 <div class="date-divider"><span>대화 시작</span></div>
             `;
-            // 빈 채팅방도 맨 아래로
             setTimeout(() => {
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }, 0);
             return;
         }
         
+        // 메시지 데이터 수집
         let lastDate = null;
         const messages = [];
         
@@ -1034,8 +1024,12 @@ async function loadMessages() {
             groupMembers = groupSnap.exists() ? groupSnap.val().members || {} : {};
         }
 
+        // 모든 데이터 준비 완료 - 이제 화면 클리어하고 렌더링
+        messagesContainer.innerHTML = '';
+
         // DocumentFragment를 사용해서 한번에 DOM 추가 (성능 최적화)
         const fragment = document.createDocumentFragment();
+        let lastDate = null;
         
         // render messages and collect to mark read
         for (const message of messages) {
