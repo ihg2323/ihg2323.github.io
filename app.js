@@ -853,15 +853,17 @@ function setupMessageInput() {
                         await update(ref(database, `chats/${memberUid}/${currentChatId}`), updateObj);
                     }
                 } else {
-                    // recipient gets time update, sender only gets lastMessage text (no time change)
+                    // 1:1 채팅 - 발신자와 수신자 모두 lastMessageTime 업데이트
+                    const now = Date.now();
                     await update(ref(database, `chats/${currentUser.uid}/${currentChatUser.id}`), {
                         lastMessage: '[이미지]',
+                        lastMessageTime: now,
                         unread: false
                     });
 
                     await update(ref(database, `chats/${currentChatUser.id}/${currentUser.uid}`), {
                         lastMessage: '[이미지]',
-                        lastMessageTime: Date.now(),
+                        lastMessageTime: now,
                         unread: true
                     });
                 }
@@ -994,6 +996,8 @@ function insertEmoji(emoji) {
 }
 
 // ==================== 메시지 전송 ====================
+let isSendingMessage = false; // 중복 전송 방지
+
 async function sendMessage() {
     const messageInput = document.getElementById('messageInput');
     if (!messageInput || !currentChatId) return;
@@ -1001,7 +1005,14 @@ async function sendMessage() {
     const text = messageInput.value.trim();
     if (text === '') return;
     
+    // 중복 전송 방지
+    if (isSendingMessage) {
+        console.log('메시지 전송 중... 잠시만 기다려주세요');
+        return;
+    }
+    
     try {
+        isSendingMessage = true; // 전송 시작
         const messagesRefLocal = ref(database, `messages/${currentChatId}`);
         const mRef = push(messagesRefLocal);
         
@@ -1034,16 +1045,17 @@ async function sendMessage() {
                 await update(ref(database, `chats/${memberUid}/${currentChatId}`), updateObj);
             }
         } else {
-            // For 1:1 chats, update recipient's lastMessageTime (so their list shows recent),
-            // but do NOT update sender's lastMessageTime to avoid moving chat to top on send.
+            // 1:1 채팅 - 발신자와 수신자 모두 lastMessageTime 업데이트 (시간순 정렬)
+            const now = Date.now();
             await update(ref(database, `chats/${currentUser.uid}/${currentChatUser.id}`), {
                 lastMessage: text,
+                lastMessageTime: now,
                 unread: false
             });
 
             await update(ref(database, `chats/${currentChatUser.id}/${currentUser.uid}`), {
                 lastMessage: text,
-                lastMessageTime: Date.now(),
+                lastMessageTime: now,
                 unread: true
             });
         }
@@ -1053,8 +1065,23 @@ async function sendMessage() {
     } catch (error) {
         console.error('메시지 전송 에러:', error);
         alert('메시지 전송에 실패했습니다: ' + error.message);
+    } finally {
+        isSendingMessage = false; // 전송 완료 (성공/실패 관계없이)
     }
 }
+
+// ==================== 메시지 삭제 ====================
+window.deleteMessage = async function(messageId) {
+    if (!currentChatId) return;
+    if (!confirm('이 메시지를 삭제하시겠습니까?')) return;
+    
+    try {
+        await set(ref(database, `messages/${currentChatId}/${messageId}`), null);
+    } catch (error) {
+        console.error('메시지 삭제 오류:', error);
+        alert('메시지 삭제에 실패했습니다: ' + error.message);
+    }
+};
 
 // ==================== 메시지 로드 (및 읽음 처리) ====================
 async function loadMessages() {
@@ -1227,6 +1254,13 @@ async function loadMessages() {
                 }
             }
 
+            // 삭제 버튼 (본인이 보낸 메시지 또는 관리자)
+            let deleteBtn = '';
+            if (isSent || isSuperAdmin()) {
+                deleteBtn = `<button class="delete-message-btn" onclick="deleteMessage('${message.id}')" title="삭제">🗑️</button>`;
+            }
+            }
+
             messageDiv.innerHTML = `
                 <div class="message-avatar">${initial}</div>
                 <div class="message-content">
@@ -1235,6 +1269,7 @@ async function loadMessages() {
                     <div class="message-time">${timeStr}</div>
                     ${readHtml}
                 </div>
+                ${deleteBtn}
             `;
             
             fragment.appendChild(messageDiv);
@@ -2279,8 +2314,10 @@ window.adminSearchUsers = async function() {
                 html += `<div style="border:1px solid var(--border-color);padding:8px;margin:8px 0;border-radius:6px;">
                     <div><strong>${u.name}</strong> (@${u.username}) ${statusBadge}</div>
                     <div style="font-size:12px;color:var(--text-secondary);">${u.email}</div>
+                    <div style="font-size:12px;color:var(--text-secondary);">상태: ${u.status || '없음'}</div>
                     <div style="font-size:12px;color:var(--text-secondary);">가입: ${new Date(u.createdAt).toLocaleDateString()}</div>
                     <div style="margin-top:8px;">
+                        <button class="btn btn-secondary" onclick="adminEditUser('${child.key}', \`${u.name}\`, \`${u.status || ''}\`, '${u.username}')" style="margin-right:4px;margin-top:4px;">편집</button>
                         ${suspendBtn}
                         <button class="btn btn-secondary" onclick="adminDeleteUser('${child.key}')" style="background:#dc3545;color:white;margin-top:4px;">계정 삭제</button>
                     </div>
@@ -2324,8 +2361,10 @@ window.adminLoadAllUsers = async function() {
             html += `<div style="border:1px solid var(--border-color);padding:10px;margin:8px 0;border-radius:6px;${isSuspended ? 'opacity:0.7;' : ''}">
                 <div><strong>${u.name}</strong> (@${u.username}) ${statusBadge}</div>
                 <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${u.email}</div>
+                <div style="font-size:12px;color:var(--text-secondary);">상태: ${u.status || '없음'}</div>
                 <div style="font-size:12px;color:var(--text-secondary);">가입: ${new Date(u.createdAt).toLocaleDateString()} | ${onlineStatus}</div>
                 <div style="margin-top:8px;">
+                    <button class="btn btn-secondary" onclick="adminEditUser('${u.id}', \`${u.name}\`, \`${u.status || ''}\`, '${u.username}')" style="margin-right:4px;margin-top:4px;font-size:12px;padding:4px 8px;">편집</button>
                     ${suspendBtn}
                     <button class="btn btn-secondary" onclick="adminDeleteUser('${u.id}')" style="background:#dc3545;color:white;margin-top:4px;font-size:12px;padding:4px 8px;">계정 삭제</button>
                 </div>
@@ -2367,6 +2406,38 @@ window.adminUnsuspendUser = async function(uid) {
     try {
         await update(ref(database, `users/${uid}`), { suspended: false, suspendedAt: null });
         alert('계정 정지가 해제되었습니다.');
+        // 현재 보고 있는 목록 새로고침
+        const searchInput = document.getElementById('adminSearch');
+        if (searchInput && searchInput.value.trim()) {
+            adminSearchUsers();
+        } else {
+            adminLoadAllUsers();
+        }
+    } catch(e) {
+        alert('오류: ' + e.message);
+    }
+};
+
+// 사용자 편집 (이름, 상태 메시지)
+window.adminEditUser = async function(uid, currentName, currentStatus, username) {
+    const newName = prompt('이름 수정:', currentName);
+    if (newName === null) return; // 취소
+    
+    const newStatus = prompt('상태 메시지 수정:', currentStatus);
+    if (newStatus === null) return; // 취소
+    
+    if (!newName.trim()) {
+        alert('이름은 비워둘 수 없습니다.');
+        return;
+    }
+    
+    try {
+        await update(ref(database, `users/${uid}`), {
+            name: newName.trim(),
+            status: newStatus.trim()
+        });
+        alert('수정 완료');
+        
         // 현재 보고 있는 목록 새로고침
         const searchInput = document.getElementById('adminSearch');
         if (searchInput && searchInput.value.trim()) {
@@ -2468,3 +2539,77 @@ checkLoginStatus = function() {
         setTimeout(initAdminPanel, 100);
     }
 };
+
+// ==================== 추가 스타일 적용 ====================
+// 삭제 버튼 스타일 및 이모티콘 그리드 스타일
+(function addCustomStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        /* 메시지 삭제 버튼 */
+        .delete-message-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(220, 53, 69, 0.1);
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            opacity: 0;
+            transition: all 0.2s;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .message.sent {
+            position: relative;
+        }
+        
+        .message.received {
+            position: relative;
+        }
+        
+        .message.sent:hover .delete-message-btn,
+        .message.received:hover .delete-message-btn {
+            opacity: 1;
+        }
+        
+        .delete-message-btn:hover {
+            background: rgba(220, 53, 69, 0.2);
+            transform: translateY(-50%) scale(1.1);
+        }
+        
+        /* 이모티콘 그리드 5x5 */
+        .emoji-grid {
+            display: grid !important;
+            grid-template-columns: repeat(5, 1fr) !important;
+            grid-auto-rows: auto !important;
+            gap: 4px !important;
+            padding: 8px !important;
+            max-height: 300px;
+        }
+        
+        .emoji-item {
+            font-size: 24px !important;
+            cursor: pointer !important;
+            padding: 8px !important;
+            border-radius: 6px !important;
+            text-align: center !important;
+            transition: all 0.2s !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            min-height: 44px !important;
+        }
+        
+        .emoji-item:hover {
+            background: var(--bg-secondary);
+            transform: scale(1.2);
+        }
+    `;
+    document.head.appendChild(style);
+})();
