@@ -1084,7 +1084,13 @@ async function loadMessages() {
             messagesContainer.appendChild(messageDiv);
         }
         
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        // 스크롤을 맨 아래로 이동 (DOM 렌더링 완료 후 확실히 실행)
+        // requestAnimationFrame을 두 번 사용하여 레이아웃 계산이 완료된 후 스크롤
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            });
+        });
 
         // mark unread messages as read for current user (set readBy)
         for (const message of messages) {
