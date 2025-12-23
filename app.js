@@ -659,6 +659,14 @@ async function openChat(peerId, peerData) {
         });
     }
 
+    // 즉시 로딩 인디케이터 표시 (빈 화면 방지)
+    const messagesContainer = document.getElementById('messagesContainer');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = '<div class="date-divider"><span>메시지 불러오는 중...</span></div>';
+        // 미리 스크롤을 맨 아래로
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
     // setup emoji panel, file input handlers, message input
     setupMessageInput();
     loadMessages();
@@ -1026,6 +1034,9 @@ async function loadMessages() {
             groupMembers = groupSnap.exists() ? groupSnap.val().members || {} : {};
         }
 
+        // DocumentFragment를 사용해서 한번에 DOM 추가 (성능 최적화)
+        const fragment = document.createDocumentFragment();
+        
         // render messages and collect to mark read
         for (const message of messages) {
             const messageDate = new Date(message.timestamp);
@@ -1035,7 +1046,7 @@ async function loadMessages() {
                 const divider = document.createElement('div');
                 divider.className = 'date-divider';
                 divider.innerHTML = `<span>${dateStr}</span>`;
-                messagesContainer.appendChild(divider);
+                fragment.appendChild(divider);
                 lastDate = dateStr;
             }
             
@@ -1101,8 +1112,11 @@ async function loadMessages() {
                 </div>
             `;
             
-            messagesContainer.appendChild(messageDiv);
+            fragment.appendChild(messageDiv);
         }
+        
+        // 한번에 DOM에 추가 (reflow 최소화)
+        messagesContainer.appendChild(fragment);
         
         // 모든 렌더링 완료 후 스크롤을 맨 아래로 (한번만 확실하게)
         setTimeout(() => {
