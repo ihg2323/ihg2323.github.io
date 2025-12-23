@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>웹 메신저</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 로그인 화면 -->
+    <div class="auth-container active" id="loginContainer">
+        <div class="auth-box">
+            <div class="auth-logo">
+                <h1>💬 ChatApp</h1>
+                <p>친구들과 실시간으로 소통하세요</p>
+            </div>
+            
+            <div class="error-message" id="loginError"></div>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="loginUsername">아이디 또는 이메일</label>
+                    <input type="text" id="loginUsername" placeholder="아이디 또는 이메일을 입력하세요" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="loginPassword">비밀번호</label>
+                    <input type="password" id="loginPassword" placeholder="비밀번호를 입력하세요" required>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="loginBtn">
+                        로그인
+                    </button>
+                </div>
+            </form>
+            
+            <div class="auth-switch">
+                계정이 없으신가요? <a id="showSignup">회원가입</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 회원가입 화면 -->
+    <div class="auth-container" id="signupContainer">
+        <div class="auth-box">
+            <div class="auth-logo">
+                <h1>💬 ChatApp</h1>
+                <p>새로운 계정을 만들어보세요</p>
+            </div>
+            
+            <div class="error-message" id="signupError"></div>
+            <div class="success-message" id="signupSuccess"></div>
+            
+            <form id="signupForm">
+                <div class="form-group">
+                    <label for="signupUsername">아이디</label>
+                    <input type="text" id="signupUsername" placeholder="영문, 숫자 4-20자" required minlength="4" maxlength="20" pattern="[a-zA-Z0-9]+">
+                    <div class="input-hint">영문과 숫자만 사용 가능합니다</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="signupEmail">이메일</label>
+                    <input type="email" id="signupEmail" placeholder="email@example.com" required>
+                    <div class="input-hint">유효한 이메일을 입력하세요</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="signupName">이름</label>
+                    <input type="text" id="signupName" placeholder="홍길동" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="signupPassword">비밀번호</label>
+                    <input type="password" id="signupPassword" placeholder="6자 이상 입력하세요" required minlength="6">
+                </div>
+                
+                <div class="form-group">
+                    <label for="signupPasswordConfirm">비밀번호 확인</label>
+                    <input type="password" id="signupPasswordConfirm" placeholder="비밀번호를 다시 입력하세요" required>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="signupBtn">
+                        회원가입
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="backToLogin">돌아가기</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 메인 애플리케이션 -->
+    <div class="main-app" id="mainApp">
+        <!-- 사이드바 네비게이션 -->
+        <nav class="sidebar-nav">
+            <div class="nav-logo">💬</div>
+            
+            <div class="nav-items">
+                <button class="nav-item active" data-view="friends" title="친구">
+                    👥
+                </button>
+                <button class="nav-item" data-view="messages" title="메시지">
+                    💬
+                    <span class="badge" id="unreadBadge" style="display: none;">0</span>
+                </button>
+            </div>
+            
+            <div class="nav-user" id="userProfile" title="설정 열기"></div>
+            <button class="nav-settings" id="openSettings" title="설정">⚙️</button>
+            <button class="logout-btn" id="logoutBtn" title="로그아웃">🚪</button>
+        </nav>
+
+        <!-- 친구 목록 패널 -->
+        <aside class="friends-panel active" id="friendsPanel">
+            <div class="panel-header">
+                <h2>친구</h2>
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" placeholder="친구 검색..." id="friendSearch">
+                </div>
+            </div>
+
+            <div class="panel-tabs" id="friendsTabs">
+                <button class="tab-btn active" data-tab="friends-list">친구 목록</button>
+                <button class="tab-btn" data-tab="requests">친구 요청 <span id="requestCount" style="margin-left:6px;color:var(--text-secondary)"></span></button>
+                <button class="tab-btn" data-tab="add-friend">친구 추가</button>
+            </div>
+
+            <div class="panel-content">
+                <!-- 친구 목록 -->
+                <div class="tab-content active" id="friendsList">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👥</div>
+                        <h3>친구가 없습니다</h3>
+                        <p>친구를 추가해보세요!</p>
+                    </div>
+                </div>
+
+                <!-- 친구 요청 -->
+                <div class="tab-content" id="friendRequests" style="display:none;">
+                    <div id="requestsList">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📨</div>
+                            <h3>친구 요청이 없습니다</h3>
+                            <p>받은 요청이 표시됩니다</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 친구 추가 -->
+                <div class="tab-content" id="addFriend" style="display: none;">
+                    <div class="add-friend-form">
+                        <div class="error-message" id="addFriendError"></div>
+                        <div class="success-message" id="addFriendSuccess"></div>
+                        <div class="form-group">
+                            <label>친구 아이디</label>
+                            <input type="text" id="friendUsername" placeholder="friend123">
+                            <div class="input-hint">친구의 아이디를 입력하세요</div>
+                        </div>
+                        <button class="btn btn-primary" id="addFriendBtn">친구 요청 보내기</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 메시지 목록 패널 -->
+        <aside class="messages-panel" id="messagesPanel">
+            <div class="panel-header">
+                <h2>메시지</h2>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button class="btn btn-secondary" id="createGroupBtn" title="그룹 만들기">그룹 만들기</button>
+                </div>
+            </div>
+
+            <div class="panel-content" id="chatList">
+                <div class="empty-state">
+                    <div class="empty-state-icon">💬</div>
+                    <h3>메시지가 없습니다</h3>
+                    <p>친구에게 메시지를 보내보세요!</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 채팅 영역 -->
+        <main class="chat-area" id="chatArea">
+            <div class="empty-state">
+                <div class="empty-state-icon">💬</div>
+                <h3>대화를 선택하세요</h3>
+                <p>친구를 선택하여 메시지를 시작하세요</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- 설정 모달 -->
+    <div class="modal-backdrop" id="settingsModal">
+        <div class="modal">
+            <h3>계정 설정</h3>
+            <div class="error-message" id="settingsError"></div>
+            <div class="success-message" id="settingsSuccess"></div>
+            <div class="form-group">
+                <label>이름</label>
+                <input type="text" id="settingsName" placeholder="이름">
+            </div>
+            <div class="form-group">
+                <label>상태 메시지</label>
+                <input type="text" id="settingsStatus" placeholder="상태 메시지">
+            </div>
+
+            <hr style="border-color:var(--border);margin:12px 0;">
+
+            <h4 style="margin-bottom:8px;">비밀번호 변경</h4>
+            <div class="form-group">
+                <label>현재 비밀번호</label>
+                <input type="password" id="currentPassword" placeholder="현재 비밀번호">
+            </div>
+            <div class="form-group">
+                <label>새 비밀번호</label>
+                <input type="password" id="newPassword" placeholder="새 비밀번호 (6자 이상)">
+            </div>
+            <div class="form-group">
+                <label>새 비밀번호 확인</label>
+                <input type="password" id="confirmNewPassword" placeholder="새 비밀번호 확인">
+            </div>
+
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+                <button class="btn btn-secondary" id="closeSettings">취소</button>
+                <button class="btn btn-primary" id="saveSettingsBtn">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 그룹 생성 모달 -->
+    <div class="modal-backdrop" id="groupModal">
+        <div class="modal">
+            <div class="group-modal-header">
+                <h3>그룹 만들기</h3>
+                <div class="muted">친구를 선택하여 그룹을 만드세요</div>
+            </div>
+            <div class="error-message" id="groupError"></div>
+            <div class="form-group">
+                <label>그룹 이름</label>
+                <input type="text" id="groupName" placeholder="팀 채팅" />
+            </div>
+            <div class="form-group">
+                <label>멤버 선택</label>
+                <input type="text" id="groupMemberSearch" placeholder="친구 이름 또는 아이디로 검색" style="width:100%;padding:8px;margin-bottom:8px;border-radius:8px;border:1px solid var(--border);background:var(--bg-main);color:var(--text-primary)"/>
+                <div class="member-list" id="groupMemberList">
+                    <div style="color:var(--text-secondary)">멤버를 선택하세요</div>
+                </div>
+                <div class="selected-chips" id="selectedMembersChips" aria-hidden="true"></div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+                <button class="btn btn-secondary" id="cancelGroupBtn">취소</button>
+                <button class="btn btn-primary" id="confirmCreateGroup">생성</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 그룹 정보 모달 -->
+    <div class="modal-backdrop" id="groupInfoModal">
+        <div class="modal">
+            <h3 id="groupInfoTitle">그룹 정보</h3>
+            <div class="error-message" id="groupInfoError"></div>
+            <div style="margin-bottom:8px;">
+                <strong>멤버</strong>
+            </div>
+            <div class="group-members" id="groupMembersList"></div>
+
+            <div style="margin-top:12px;">
+                <strong>초대할 친구</strong>
+                <div class="group-invite-list" id="groupInviteList"></div>
+            </div>
+
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+                <button class="btn btn-secondary" id="closeGroupInfo">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
+
+    <!-- Emoji panel -->
+    <div id="emojiPanel" class="emoji-panel" aria-hidden="true">
+        <div class="emoji-grid" id="emojiGrid"></div>
+        <div class="emoji-controls">
+            <div class="search">
+                <input id="emojiSearch" placeholder="이모지 검색(예: heart, smile)" />
+            </div>
+            <div style="display:flex;gap:6px;">
+                <button class="btn btn-secondary" id="emojiPrev">◀</button>
+                <button class="btn btn-secondary" id="emojiNext">▶</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
