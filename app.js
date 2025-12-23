@@ -817,7 +817,7 @@ const EMOJIS = [
 
 // Pagination state: show 25 emojis per page (5x5)
 let emojiPage = 0;
-const EMOJIS_PER_PAGE = 10;
+const EMOJIS_PER_PAGE = 25;
 let emojiFiltered = EMOJIS.slice();
 
 function renderEmojiPage() {
@@ -982,13 +982,11 @@ async function loadMessages() {
         
         messagesContainer.innerHTML = '';
         
-        // 즉시 스크롤을 맨 아래로 (빈 컨테이너 상태에서도)
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        
         if (!snapshot.exists()) {
             messagesContainer.innerHTML = `
                 <div class="date-divider"><span>대화 시작</span></div>
             `;
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
             return;
         }
         
@@ -1003,6 +1001,16 @@ async function loadMessages() {
         });
         
         messages.sort((a, b) => a.timestamp - b.timestamp);
+
+        // 그룹 채팅인 경우, 모든 발신자 정보를 먼저 가져오기 (성능 최적화)
+        const userCache = {};
+        if (currentChatUser.isGroup) {
+            const senderIds = [...new Set(messages.map(m => m.senderId))];
+            await Promise.all(senderIds.map(async (senderId) => {
+                const userSnap = await get(ref(database, `users/${senderId}`));
+                userCache[senderId] = userSnap.exists() ? userSnap.val() : { username: 'unknown', name: 'unknown' };
+            }));
+        }
 
         // render messages and collect to mark read
         for (const message of messages) {
@@ -1027,10 +1035,9 @@ async function loadMessages() {
             if (isSent) {
                 initial = currentUser.username ? currentUser.username.charAt(0).toUpperCase() : 'U';
             } else {
-                // for group, show sender initial (need user info)
+                // for group, show sender initial (캐시된 정보 사용)
                 if (currentChatUser.isGroup) {
-                    const senderSnap = await get(ref(database, `users/${message.senderId}`));
-                    const s = senderSnap.exists() ? senderSnap.val() : { username: message.senderUsername || 'U', name: message.senderUsername || '' };
+                    const s = userCache[message.senderId] || { username: message.senderUsername || 'U', name: message.senderUsername || '' };
                     initial = s.username ? s.username.charAt(0).toUpperCase() : '?';
                 } else {
                     initial = currentChatUser && currentChatUser.data.username ? currentChatUser.data.username.charAt(0).toUpperCase() : '?';
@@ -1048,11 +1055,10 @@ async function loadMessages() {
                 bubbleContent = escapeHtml(message.text || '');
             }
 
-            // For group chats, show sender name for received messages
+            // For group chats, show sender name for received messages (캐시된 정보 사용)
             let senderNameHtml = '';
             if (currentChatUser.isGroup && !isSent) {
-                const senderSnap = await get(ref(database, `users/${message.senderId}`));
-                const s = senderSnap.exists() ? senderSnap.val() : { username: message.senderUsername || 'unknown', name: message.senderUsername || '' };
+                const s = userCache[message.senderId] || { username: message.senderUsername || 'unknown', name: message.senderUsername || '' };
                 senderNameHtml = `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px;">${s.name || s.username || '이름 없음'}</div>`;
             }
 
@@ -1087,10 +1093,16 @@ async function loadMessages() {
             messagesContainer.appendChild(messageDiv);
         }
         
-        // 최종적으로 스크롤을 맨 아래로 (비동기 렌더링 완료 대기)
+        // 여러 방법으로 스크롤을 맨 아래로 확실히 이동
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
         setTimeout(() => {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }, 0);
+        
+        setTimeout(() => {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }, 100);
 
         // mark unread messages as read for current user (set readBy)
         for (const message of messages) {
@@ -1816,4 +1828,3 @@ groupInfoModal.addEventListener('click', (e) => {
 
 // 페이지 로드 시 로그인 상태 확인
 checkLoginStatus();
-
