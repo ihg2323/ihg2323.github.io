@@ -1572,10 +1572,69 @@ async function openGroupInfo(groupId) {
         }
         const g = gSnap.val();
         groupInfoTitle.textContent = `그룹: ${g.name || '이름 없음'}`;
+        
+        // 관리자 전용 액션 버튼들 추가
+        const isCreator = g.creator === currentUser.uid;
+        if (isCreator) {
+            const actionsDiv = document.createElement('div');
+            actionsDiv.style.cssText = 'display:flex;gap:8px;margin-bottom:16px;padding:0 16px;';
+            actionsDiv.innerHTML = `
+                <button class="btn btn-secondary" id="transferAdminBtn" style="flex:1;">관리자 양도</button>
+                <button class="btn btn-secondary" id="deleteGroupBtn" style="flex:1;background:var(--danger);border-color:var(--danger);">채팅방 삭제</button>
+            `;
+            groupMembersList.parentElement.insertBefore(actionsDiv, groupMembersList);
+            
+            // 관리자 양도 버튼
+            document.getElementById('transferAdminBtn').addEventListener('click', () => {
+                const members = g.members || {};
+                const otherMembers = Object.keys(members).filter(uid => uid !== currentUser.uid);
+                if (otherMembers.length === 0) {
+                    alert('양도할 멤버가 없습니다.');
+                    return;
+                }
+                // 멤버 선택 UI 표시
+                showTransferAdminDialog(groupId, otherMembers, members);
+            });
+            
+            // 채팅방 삭제 버튼
+            document.getElementById('deleteGroupBtn').addEventListener('click', async () => {
+                if (!confirm('정말로 이 채팅방을 삭제하시겠습니까? 모든 메시지가 삭제되며 복구할 수 없습니다.')) return;
+                if (!confirm('다시 한번 확인합니다. 채팅방을 완전히 삭제하시겠습니까?')) return;
+                
+                try {
+                    const members = g.members || {};
+                    
+                    // 모든 멤버의 채팅 목록에서 제거
+                    for (const memberUid of Object.keys(members)) {
+                        await set(ref(database, `chats/${memberUid}/group_${groupId}`), null);
+                    }
+                    
+                    // 메시지 삭제
+                    await set(ref(database, `messages/group_${groupId}`), null);
+                    
+                    // 그룹 삭제
+                    await set(ref(database, `groups/${groupId}`), null);
+                    
+                    // 모달 닫고 채팅방 닫기
+                    groupInfoModal.classList.remove('active');
+                    if (currentChatId === `group_${groupId}`) {
+                        document.getElementById('chatArea').classList.remove('active');
+                        currentChatId = null;
+                        currentChatUser = null;
+                    }
+                    
+                    alert('채팅방이 삭제되었습니다.');
+                    loadChatList();
+                } catch (err) {
+                    console.error('채팅방 삭제 오류', err);
+                    alert('채팅방 삭제 중 오류가 발생했습니다: ' + err.message);
+                }
+            });
+        }
+        
         // render members
         const members = g.members || {};
         groupMembersList.innerHTML = '';
-        const isCreator = g.creator === currentUser.uid;
         for (const uid of Object.keys(members)) {
             const uSnap = await get(ref(database, `users/${uid}`));
             const u = uSnap.exists() ? uSnap.val() : (members[uid] || { username: uid, name: uid });
@@ -1681,6 +1740,92 @@ async function openGroupInfo(groupId) {
         console.error('그룹 정보 로드 오류', e);
         alert('그룹 정보를 불러오는 중 오류가 발생했습니다.');
     }
+}
+
+// 관리자 양도 다이얼로그
+async function showTransferAdminDialog(groupId, memberUids, membersData) {
+    const modal = document.getElementById('groupInfoModal');
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10001;';
+    
+    const dialog = document.createElement('div');
+    dialog.style.cssText = 'background:var(--bg-primary);border-radius:12px;padding:24px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto;';
+    
+    let membersHtml = '<div style="margin-top:16px;">';
+    for (const uid of memberUids) {
+        const uSnap = await get(ref(database, `users/${uid}`));
+        const u = uSnap.exists() ? uSnap.val() : (membersData[uid] || { username: uid, name: uid });
+        const initial = u.username ? u.username.charAt(0).toUpperCase() : 'U';
+        membersHtml += `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;border-bottom:1px solid var(--border-color);cursor:pointer;transition:background 0.2s;" 
+                 class="transfer-member-item" data-uid="${uid}">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--secondary));color:white;display:flex;align-items:center;justify-content:center;font-weight:700;">${initial}</div>
+                    <div>
+                        <div style="font-weight:700;">${u.name || u.username}</div>
+                        <div style="font-size:12px;color:var(--text-secondary);">@${u.username || uid}</div>
+                    </div>
+                </div>
+                <div style="color:var(--primary);">선택 →</div>
+            </div>
+        `;
+    }
+    membersHtml += '</div>';
+    
+    dialog.innerHTML = `
+        <h3 style="margin:0 0 8px 0;">관리자 권한 양도</h3>
+        <p style="color:var(--text-secondary);margin:0 0 16px 0;font-size:14px;">새로운 관리자를 선택하세요. 양도 후에는 되돌릴 수 없습니다.</p>
+        ${membersHtml}
+        <button class="btn btn-secondary" id="cancelTransferBtn" style="width:100%;margin-top:16px;">취소</button>
+    `;
+    
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    // 취소 버튼
+    dialog.querySelector('#cancelTransferBtn').addEventListener('click', () => {
+        document.body.removeChild(overlay);
+    });
+    
+    // 멤버 선택
+    dialog.querySelectorAll('.transfer-member-item').forEach(item => {
+        item.addEventListener('mouseenter', () => {
+            item.style.background = 'var(--bg-secondary)';
+        });
+        item.addEventListener('mouseleave', () => {
+            item.style.background = 'transparent';
+        });
+        item.addEventListener('click', async () => {
+            const targetUid = item.dataset.uid;
+            const targetName = item.querySelector('div > div').textContent;
+            
+            if (!confirm(`${targetName}님에게 관리자 권한을 양도하시겠습니까?`)) return;
+            
+            try {
+                // 관리자 변경
+                await update(ref(database, `groups/${groupId}`), { 
+                    creator: targetUid,
+                    updatedAt: Date.now()
+                });
+                
+                // 시스템 메시지
+                const mRef = push(ref(database, `messages/group_${groupId}`));
+                await set(mRef, {
+                    type: 'system',
+                    text: `${currentUser.name || currentUser.username}님이 ${targetName}님에게 관리자 권한을 양도했습니다.`,
+                    timestamp: Date.now(),
+                    senderId: currentUser.uid
+                });
+                
+                document.body.removeChild(overlay);
+                alert('관리자 권한이 양도되었습니다.');
+                openGroupInfo(groupId); // 새로고침
+            } catch (err) {
+                console.error('관리자 양도 오류', err);
+                alert('관리자 양도 중 오류가 발생했습니다: ' + err.message);
+            }
+        });
+    });
 }
 
 // 친구 목록 중에서 그룹에 속하지 않은 사용자 목록을 보여준다
