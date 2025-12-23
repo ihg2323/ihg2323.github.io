@@ -1029,7 +1029,6 @@ async function loadMessages() {
 
         // DocumentFragment를 사용해서 한번에 DOM 추가 (성능 최적화)
         const fragment = document.createDocumentFragment();
-        let lastDate = null;
         
         // render messages and collect to mark read
         for (const message of messages) {
