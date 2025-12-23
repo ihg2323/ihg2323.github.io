@@ -31,6 +31,7 @@ let friendsRef = null;
 let chatsRef = null;
 let messagesRef = null;
 let requestsRef = null;
+let groupMembershipRef = null; // 그룹 멤버십 감시용
 
 // 금지 문자(., #, $, [, ])를 안전한 키로 변환
 function sanitizeKey(str) {
@@ -984,22 +985,45 @@ async function sendMessage() {
 async function loadMessages() {
     if (!currentChatId) return;
 
-    // 그룹 채팅인 경우, 아직 멤버인지 확인
+    // 기존 그룹 멤버십 리스너 해제
+    if (groupMembershipRef) {
+        try { off(groupMembershipRef); } catch (e) { /* ignore */ }
+        groupMembershipRef = null;
+    }
+
+    // 그룹 채팅인 경우, 실시간으로 멤버십 감시
     if (currentChatUser && currentChatUser.isGroup) {
         const groupId = currentChatId.split('group_')[1];
-        const groupSnap = await get(ref(database, `groups/${groupId}`));
-        if (groupSnap.exists()) {
-            const members = groupSnap.val().members || {};
-            if (!members[currentUser.uid]) {
-                // 퇴출되었음 - 채팅방 닫기
+        groupMembershipRef = ref(database, `groups/${groupId}/members/${currentUser.uid}`);
+        
+        // 실시간 리스너: 내가 멤버에서 제거되면 자동으로 채팅방 닫기
+        onValue(groupMembershipRef, (snapshot) => {
+            // 처음 로드 시에는 존재해야 함
+            if (snapshot.exists()) return;
+            
+            // 멤버에서 제거됨 (퇴출됨)
+            if (currentChatId === `group_${groupId}`) {
                 alert('이 그룹에서 퇴출되었습니다.');
+                
+                // 리스너 정리
+                if (messagesRef) {
+                    try { off(messagesRef); } catch (e) { /* ignore */ }
+                    messagesRef = null;
+                }
+                if (groupMembershipRef) {
+                    try { off(groupMembershipRef); } catch (e) { /* ignore */ }
+                    groupMembershipRef = null;
+                }
+                
+                // 채팅방 닫기
                 document.getElementById('chatArea').classList.remove('active');
                 currentChatId = null;
                 currentChatUser = null;
+                
+                // 채팅 목록 새로고침
                 loadChatList();
-                return;
             }
-        }
+        });
     }
 
     // 기존 messages 리스너 해제
@@ -1933,10 +1957,12 @@ function cleanupAllListeners() {
     try { if (chatsRef) off(chatsRef); } catch(e) {}
     try { if (messagesRef) off(messagesRef); } catch(e) {}
     try { if (requestsRef) off(requestsRef); } catch(e) {}
+    try { if (groupMembershipRef) off(groupMembershipRef); } catch(e) {}
     friendsRef = null;
     chatsRef = null;
     messagesRef = null;
     requestsRef = null;
+    groupMembershipRef = null;
 }
 
 // ==================== 설정 모달 동작 ====================
