@@ -982,6 +982,9 @@ async function loadMessages() {
         
         messagesContainer.innerHTML = '';
         
+        // 즉시 스크롤을 맨 아래로 (빈 컨테이너 상태에서도)
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
         if (!snapshot.exists()) {
             messagesContainer.innerHTML = `
                 <div class="date-divider"><span>대화 시작</span></div>
@@ -1082,15 +1085,13 @@ async function loadMessages() {
             `;
             
             messagesContainer.appendChild(messageDiv);
+            
+            // 메시지 추가할 때마다 스크롤을 아래로 유지
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
         
-        // 스크롤을 맨 아래로 이동 (DOM 렌더링 완료 후 확실히 실행)
-        // requestAnimationFrame을 두 번 사용하여 레이아웃 계산이 완료된 후 스크롤
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            });
-        });
+        // 최종적으로 한번 더 스크롤을 맨 아래로
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
         // mark unread messages as read for current user (set readBy)
         for (const message of messages) {
