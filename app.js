@@ -1257,8 +1257,8 @@ async function loadMessages() {
             // 삭제 버튼 (본인이 보낸 메시지 또는 관리자)
             let deleteBtn = '';
             if (isSent || isSuperAdmin()) {
-                deleteBtn = `<button class="delete-message-btn" onclick="deleteMessage('${message.id}')" title="삭제">🗑️</button>`;
-            }
+                const safeId = message.id.replace(/'/g, "\\'");
+                deleteBtn = `<button class="delete-message-btn" onclick="deleteMessage('${safeId}')" title="삭제">🗑️</button>`;
             }
 
             messageDiv.innerHTML = `
@@ -2314,7 +2314,7 @@ window.adminSearchUsers = async function() {
                     <div style="font-size:12px;color:var(--text-secondary);">상태: ${u.status || '없음'}</div>
                     <div style="font-size:12px;color:var(--text-secondary);">가입: ${new Date(u.createdAt).toLocaleDateString()}</div>
                     <div style="margin-top:8px;">
-                        <button class="btn btn-secondary" onclick="adminEditUser('${child.key}', \`${u.name}\`, \`${u.status || ''}\`, '${u.username}')" style="margin-right:4px;margin-top:4px;">편집</button>
+                        <button class="btn btn-secondary" onclick='adminEditUser("${child.key}", "${u.name.replace(/"/g, '&quot;')}", "${(u.status || '').replace(/"/g, '&quot;')}", "${u.username}")' style="margin-right:4px;margin-top:4px;">편집</button>
                         ${suspendBtn}
                         <button class="btn btn-secondary" onclick="adminDeleteUser('${child.key}')" style="background:#dc3545;color:white;margin-top:4px;">계정 삭제</button>
                     </div>
@@ -2361,7 +2361,7 @@ window.adminLoadAllUsers = async function() {
                 <div style="font-size:12px;color:var(--text-secondary);">상태: ${u.status || '없음'}</div>
                 <div style="font-size:12px;color:var(--text-secondary);">가입: ${new Date(u.createdAt).toLocaleDateString()} | ${onlineStatus}</div>
                 <div style="margin-top:8px;">
-                    <button class="btn btn-secondary" onclick="adminEditUser('${u.id}', \`${u.name}\`, \`${u.status || ''}\`, '${u.username}')" style="margin-right:4px;margin-top:4px;font-size:12px;padding:4px 8px;">편집</button>
+                    <button class="btn btn-secondary" onclick='adminEditUser("${u.id}", "${u.name.replace(/"/g, '&quot;')}", "${(u.status || '').replace(/"/g, '&quot;')}", "${u.username}")' style="margin-right:4px;margin-top:4px;font-size:12px;padding:4px 8px;">편집</button>
                     ${suspendBtn}
                     <button class="btn btn-secondary" onclick="adminDeleteUser('${u.id}')" style="background:#dc3545;color:white;margin-top:4px;font-size:12px;padding:4px 8px;">계정 삭제</button>
                 </div>
