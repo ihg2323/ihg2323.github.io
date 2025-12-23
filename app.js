@@ -1573,14 +1573,21 @@ async function openGroupInfo(groupId) {
         const g = gSnap.val();
         groupInfoTitle.textContent = `그룹: ${g.name || '이름 없음'}`;
         
+        // 기존 관리자 액션 버튼 제거 (중복 방지)
+        const existingActions = groupMembersList.parentElement.querySelector('.admin-actions');
+        if (existingActions) {
+            existingActions.remove();
+        }
+        
         // 관리자 전용 액션 버튼들 추가
         const isCreator = g.creator === currentUser.uid;
         if (isCreator) {
             const actionsDiv = document.createElement('div');
-            actionsDiv.style.cssText = 'display:flex;gap:8px;margin-bottom:16px;padding:0 16px;';
+            actionsDiv.className = 'admin-actions';
+            actionsDiv.style.cssText = 'display:flex;gap:8px;margin-bottom:16px;';
             actionsDiv.innerHTML = `
                 <button class="btn btn-secondary" id="transferAdminBtn" style="flex:1;">관리자 양도</button>
-                <button class="btn btn-secondary" id="deleteGroupBtn" style="flex:1;background:var(--danger);border-color:var(--danger);">채팅방 삭제</button>
+                <button class="btn btn-secondary" id="deleteGroupBtn" style="flex:1;background:#dc3545;border-color:#dc3545;color:white;">채팅방 삭제</button>
             `;
             groupMembersList.parentElement.insertBefore(actionsDiv, groupMembersList);
             
@@ -1602,10 +1609,10 @@ async function openGroupInfo(groupId) {
                 if (!confirm('다시 한번 확인합니다. 채팅방을 완전히 삭제하시겠습니까?')) return;
                 
                 try {
-                    const members = g.members || {};
+                    const membersToRemove = g.members || {};
                     
                     // 모든 멤버의 채팅 목록에서 제거
-                    for (const memberUid of Object.keys(members)) {
+                    for (const memberUid of Object.keys(membersToRemove)) {
                         await set(ref(database, `chats/${memberUid}/group_${groupId}`), null);
                     }
                     
