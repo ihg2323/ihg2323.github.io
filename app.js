@@ -1085,13 +1085,12 @@ async function loadMessages() {
             `;
             
             messagesContainer.appendChild(messageDiv);
-            
-            // 메시지 추가할 때마다 스크롤을 아래로 유지
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
         
-        // 최종적으로 한번 더 스크롤을 맨 아래로
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        // 최종적으로 스크롤을 맨 아래로 (비동기 렌더링 완료 대기)
+        setTimeout(() => {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }, 0);
 
         // mark unread messages as read for current user (set readBy)
         for (const message of messages) {
