@@ -7,10 +7,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- 로그인 화면 -->
+    <!-- ==================== 로그인 화면 ==================== -->
     <div class="auth-container active" id="loginContainer">
         <div class="auth-box">
             <div class="auth-logo">
@@ -44,7 +44,7 @@
         </div>
     </div>
 
-    <!-- 회원가입 화면 -->
+    <!-- ==================== 회원가입 화면 ==================== -->
     <div class="auth-container" id="signupContainer">
         <div class="auth-box">
             <div class="auth-logo">
@@ -93,7 +93,7 @@
         </div>
     </div>
 
-    <!-- 메인 애플리케이션 -->
+    <!-- ==================== 메인 애플리케이션 ==================== -->
     <div class="main-app" id="mainApp">
         <!-- 사이드바 네비게이션 -->
         <nav class="sidebar-nav">
@@ -114,7 +114,7 @@
             <button class="logout-btn" id="logoutBtn" title="로그아웃">🚪</button>
         </nav>
 
-        <!-- 친구 목록 패널 -->
+        <!-- ==================== 친구 목록 패널 ==================== -->
         <aside class="friends-panel active" id="friendsPanel">
             <div class="panel-header">
                 <h2>친구</h2>
@@ -167,7 +167,7 @@
             </div>
         </aside>
 
-        <!-- 메시지 목록 패널 -->
+        <!-- ==================== 메시지 목록 패널 ==================== -->
         <aside class="messages-panel" id="messagesPanel">
             <div class="panel-header">
                 <h2>메시지</h2>
@@ -185,7 +185,7 @@
             </div>
         </aside>
 
-        <!-- 채팅 영역 -->
+        <!-- ==================== 채팅 영역 ==================== -->
         <main class="chat-area" id="chatArea">
             <div class="empty-state">
                 <div class="empty-state-icon">💬</div>
@@ -260,7 +260,7 @@
         </div>
     </div>
 
-    <!-- 그룹 정보 모달 -->
+    <!-- 그룹 정보(멤버/초대/제거) 모달 -->
     <div class="modal-backdrop" id="groupInfoModal">
         <div class="modal">
             <h3 id="groupInfoTitle">그룹 정보</h3>
@@ -268,11 +268,15 @@
             <div style="margin-bottom:8px;">
                 <strong>멤버</strong>
             </div>
-            <div class="group-members" id="groupMembersList"></div>
+            <div class="group-members" id="groupMembersList">
+                <!-- 멤버 리스트 -->
+            </div>
 
             <div style="margin-top:12px;">
                 <strong>초대할 친구</strong>
-                <div class="group-invite-list" id="groupInviteList"></div>
+                <div class="group-invite-list" id="groupInviteList">
+                    <!-- 초대 가능한 친구들 -->
+                </div>
             </div>
 
             <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
@@ -281,7 +285,7 @@
         </div>
     </div>
 
-    <!-- Hidden file input -->
+    <!-- Hidden file input for attachments -->
     <input type="file" id="fileInput" accept="image/*" style="display:none">
 
     <!-- Emoji panel -->
