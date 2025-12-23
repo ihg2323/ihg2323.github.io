@@ -1010,12 +1010,20 @@ async function loadMessages() {
 
         // 그룹 채팅인 경우, 모든 발신자 정보를 먼저 가져오기 (성능 최적화)
         const userCache = {};
+        let groupMembers = null; // 그룹 멤버 정보 캐시
+        
         if (currentChatUser.isGroup) {
+            // 발신자 정보 캐시
             const senderIds = [...new Set(messages.map(m => m.senderId))];
             await Promise.all(senderIds.map(async (senderId) => {
                 const userSnap = await get(ref(database, `users/${senderId}`));
                 userCache[senderId] = userSnap.exists() ? userSnap.val() : { username: 'unknown', name: 'unknown' };
             }));
+            
+            // 그룹 멤버 정보도 미리 한번만 가져오기
+            const groupId = currentChatId.split('group_')[1];
+            const groupSnap = await get(ref(database, `groups/${groupId}`));
+            groupMembers = groupSnap.exists() ? groupSnap.val().members || {} : {};
         }
 
         // render messages and collect to mark read
@@ -1073,11 +1081,8 @@ async function loadMessages() {
             if (isSent) {
                 const readBy = message.readBy || {};
                 if (currentChatUser.isGroup) {
-                    // count how many of group members have read
-                    const groupId = currentChatId.split('group_')[1];
-                    const groupSnap = await get(ref(database, `groups/${groupId}`));
-                    const members = groupSnap.exists() ? groupSnap.val().members || {} : {};
-                    const total = Object.keys(members).length;
+                    // 미리 캐시된 그룹 멤버 정보 사용 (매번 DB 조회 안함!)
+                    const total = groupMembers ? Object.keys(groupMembers).length : 0;
                     const readCount = Object.keys(readBy).filter(k=>readBy[k]).length;
                     readHtml = `<div class="read-indicator">${readCount}/${total} 읽음</div>`;
                 } else {
@@ -1099,28 +1104,10 @@ async function loadMessages() {
             messagesContainer.appendChild(messageDiv);
         }
         
-        // 스크롤을 맨 아래로 이동 (여러 번 시도)
-        const scrollToBottom = () => {
+        // 모든 렌더링 완료 후 스크롤을 맨 아래로 (한번만 확실하게)
+        setTimeout(() => {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        };
-        
-        // 1. 즉시 스크롤
-        scrollToBottom();
-        
-        // 2. 다음 프레임에서 스크롤
-        requestAnimationFrame(() => {
-            scrollToBottom();
-            // 3. 한번 더
-            requestAnimationFrame(() => {
-                scrollToBottom();
-            });
-        });
-        
-        // 4. setTimeout으로도 스크롤
-        setTimeout(scrollToBottom, 0);
-        setTimeout(scrollToBottom, 50);
-        setTimeout(scrollToBottom, 100);
-        setTimeout(scrollToBottom, 200);
+        }, 0);
 
         // mark unread messages as read for current user (set readBy)
         for (const message of messages) {
