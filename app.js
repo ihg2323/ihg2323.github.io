@@ -1730,20 +1730,38 @@ async function openGroupInfo(groupId) {
                 const targetUid = btn.dataset.uid;
                 if (!confirm('정말로 멤버를 추방하시겠습니까?')) return;
                 try {
-                    // remove member from group
-                    await set(ref(database, `groups/${groupId}/members/${targetUid}`), null);
-                    // ensure group metadata updated so listeners refresh reliably
-                    await update(ref(database, `groups/${groupId}`), { updatedAt: Date.now() });
-                    // remove chat entry for that member
-                    await set(ref(database, `chats/${targetUid}/group_${groupId}`), null);
-                    // push system message
+                    // 퇴출될 사용자 이름 가져오기
+                    const targetUserSnap = await get(ref(database, `users/${targetUid}`));
+                    const targetUserName = targetUserSnap.exists() ? (targetUserSnap.val().name || targetUserSnap.val().username) : targetUid;
+                    
+                    // 1. 시스템 메시지 먼저 전송 (퇴출된 사람도 볼 수 있도록)
                     const mRef = push(ref(database, `messages/group_${groupId}`));
                     await set(mRef, {
                         type: 'system',
-                        text: `${targetUid}님이 그룹에서 추방되었습니다.`,
+                        text: `${targetUserName}님이 그룹에서 추방되었습니다.`,
                         timestamp: Date.now(),
                         senderId: currentUser.uid
                     });
+                    
+                    // 2. 그룹 멤버에서 제거 (이제 퇴출된 사람은 실시간 리스너로 감지됨)
+                    await set(ref(database, `groups/${groupId}/members/${targetUid}`), null);
+                    
+                    // 3. 그룹 메타데이터 업데이트
+                    await update(ref(database, `groups/${groupId}`), { updatedAt: Date.now() });
+                    
+                    // 4. 퇴출된 사용자의 채팅 목록에서 이 그룹 완전 삭제
+                    await set(ref(database, `chats/${targetUid}/group_${groupId}`), null);
+                    
+                    // 5. 모든 메시지의 readBy에서 퇴출된 사용자 제거
+                    const messagesSnap = await get(ref(database, `messages/group_${groupId}`));
+                    if (messagesSnap.exists()) {
+                        const messages = messagesSnap.val();
+                        for (const msgId of Object.keys(messages)) {
+                            const readByPath = `messages/group_${groupId}/${msgId}/readBy/${targetUid}`;
+                            await set(ref(database, readByPath), null);
+                        }
+                    }
+                    
                     // refresh UI
                     openGroupInfo(groupId);
                     if (currentChatId === `group_${groupId}`) {
