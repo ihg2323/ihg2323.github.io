@@ -629,7 +629,7 @@ async function openChat(peerId, peerData) {
 
     document.getElementById('chatArea').innerHTML = `
         ${headerHtml}
-        <div class="messages-container" id="messagesContainer"></div>
+        <div class="messages-container" id="messagesContainer" style="display: flex; flex-direction: column; overflow-y: auto;"></div>
         <div class="input-area">
             <div class="input-wrapper">
                 <div class="input-actions"></div>
@@ -980,13 +980,19 @@ async function loadMessages() {
         const messagesContainer = document.getElementById('messagesContainer');
         if (!messagesContainer) return;
         
+        // 이전 스크롤 위치 저장 (새 메시지가 추가되는 경우)
+        const wasAtBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop <= messagesContainer.clientHeight + 100;
+        
         messagesContainer.innerHTML = '';
         
         if (!snapshot.exists()) {
             messagesContainer.innerHTML = `
                 <div class="date-divider"><span>대화 시작</span></div>
             `;
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            // 빈 채팅방도 맨 아래로
+            setTimeout(() => {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }, 0);
             return;
         }
         
@@ -1093,16 +1099,28 @@ async function loadMessages() {
             messagesContainer.appendChild(messageDiv);
         }
         
-        // 여러 방법으로 스크롤을 맨 아래로 확실히 이동
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        
-        setTimeout(() => {
+        // 스크롤을 맨 아래로 이동 (여러 번 시도)
+        const scrollToBottom = () => {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }, 0);
+        };
         
-        setTimeout(() => {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }, 100);
+        // 1. 즉시 스크롤
+        scrollToBottom();
+        
+        // 2. 다음 프레임에서 스크롤
+        requestAnimationFrame(() => {
+            scrollToBottom();
+            // 3. 한번 더
+            requestAnimationFrame(() => {
+                scrollToBottom();
+            });
+        });
+        
+        // 4. setTimeout으로도 스크롤
+        setTimeout(scrollToBottom, 0);
+        setTimeout(scrollToBottom, 50);
+        setTimeout(scrollToBottom, 100);
+        setTimeout(scrollToBottom, 200);
 
         // mark unread messages as read for current user (set readBy)
         for (const message of messages) {
