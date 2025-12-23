@@ -33,6 +33,14 @@ let messagesRef = null;
 let requestsRef = null;
 let groupMembershipRef = null; // 그룹 멤버십 감시용
 
+// 슈퍼 관리자 username 목록 (여기에 관리자 아이디 추가)
+const SUPER_ADMINS = ['admin', 'superadmin']; // 원하는 username을 여기에 추가하세요
+
+// 슈퍼 관리자인지 확인
+function isSuperAdmin() {
+    return currentUser && SUPER_ADMINS.includes(currentUser.username.toLowerCase());
+}
+
 // 금지 문자(., #, $, [, ])를 안전한 키로 변환
 function sanitizeKey(str) {
     if (!str || typeof str !== 'string') return str;
@@ -67,7 +75,46 @@ function showMainApp() {
     document.getElementById('loginContainer').classList.remove('active');
     document.getElementById('signupContainer').classList.remove('active');
     document.getElementById('mainApp').classList.add('active');
+    
+    // 슈퍼 관리자인 경우 관리자 패널 표시
+    showAdminPanelIfNeeded();
 }
+
+// 슈퍼 관리자 패널 표시
+function showAdminPanelIfNeeded() {
+    const nav = document.querySelector('.nav');
+    if (!nav) return;
+    
+    // 기존 관리자 버튼 제거
+    const existingAdminBtn = document.querySelector('.nav-item[data-view="admin"]');
+    if (existingAdminBtn) {
+        existingAdminBtn.remove();
+    }
+    
+    // 슈퍼 관리자인 경우 버튼 추가
+    if (isSuperAdmin()) {
+        const adminBtn = document.createElement('div');
+        adminBtn.className = 'nav-item';
+        adminBtn.dataset.view = 'admin';
+        adminBtn.innerHTML = `
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+            </svg>
+            <span>관리자</span>
+        `;
+        nav.appendChild(adminBtn);
+        
+        // 관리자 패널 클릭 이벤트
+        adminBtn.addEventListener('click', () => {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            adminBtn.classList.add('active');
+            showAdminPanel();
+        });
+    }
+}
+
 
 // ==================== 회원가입 ====================
 document.getElementById('signupForm').addEventListener('submit', async (e) => {
@@ -826,7 +873,7 @@ const EMOJIS = [
 
 // Pagination state: show 25 emojis per page (5x5)
 let emojiPage = 0;
-const EMOJIS_PER_PAGE = 10;
+const EMOJIS_PER_PAGE = 25;
 let emojiFiltered = EMOJIS.slice();
 
 function renderEmojiPage() {
@@ -2107,3 +2154,190 @@ groupInfoModal.addEventListener('click', (e) => {
 // 페이지 로드 시 로그인 상태 확인
 checkLoginStatus();
 
+// ==================== 슈퍼 관리자 기능 추가 ====================
+// showMainApp 함수 실행 후 관리자 버튼 추가
+function initAdminPanel() {
+    const nav = document.querySelector('.nav-items');
+    if (!nav || !isSuperAdmin()) return;
+    
+    // 기존 관리자 버튼 제거
+    const existingBtn = document.querySelector('[data-view="admin"]');
+    if (existingBtn) return; // 이미 있으면 종료
+    
+    const adminBtn = document.createElement('button');
+    adminBtn.className = 'nav-item';
+    adminBtn.dataset.view = 'admin';
+    adminBtn.title = '관리자';
+    adminBtn.innerHTML = '⚙️<span class="badge" style="background:#ff4444;">A</span>';
+    nav.appendChild(adminBtn);
+    
+    adminBtn.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        adminBtn.classList.add('active');
+        showAdminPanel();
+    });
+}
+
+async function showAdminPanel() {
+    document.getElementById('friendsPanel').classList.remove('active');
+    document.getElementById('messagesPanel').classList.remove('active');
+    document.getElementById('chatArea').classList.remove('active');
+    
+    let adminPanel = document.getElementById('adminPanel');
+    if (!adminPanel) {
+        adminPanel = document.createElement('aside');
+        adminPanel.id = 'adminPanel';
+        adminPanel.className = 'panel';
+        adminPanel.style.cssText = 'grid-column:2;overflow-y:auto;';
+        document.querySelector('.main-app').appendChild(adminPanel);
+    }
+    
+    adminPanel.classList.add('active');
+    adminPanel.style.display = 'block';
+    
+    adminPanel.innerHTML = `
+        <div class="panel-header"><h2>🔐 관리자 패널</h2></div>
+        <div class="panel-content" style="padding:16px;">
+            <div style="background:var(--bg-secondary);padding:16px;border-radius:8px;margin-bottom:16px;">
+                <h3>👥 사용자 검색</h3>
+                <input type="text" id="adminSearch" placeholder="아이디 또는 이름" style="width:100%;padding:8px;margin:8px 0;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);">
+                <button class="btn btn-primary" onclick="adminSearchUsers()" style="width:100%;">검색</button>
+                <div id="adminResults" style="margin-top:12px;"></div>
+            </div>
+            
+            <div style="background:var(--bg-secondary);padding:16px;border-radius:8px;margin-bottom:16px;">
+                <h3>💬 그룹 관리</h3>
+                <button class="btn btn-primary" onclick="adminLoadGroups()" style="width:100%;">모든 그룹 보기</button>
+                <div id="adminGroups" style="margin-top:12px;"></div>
+            </div>
+            
+            <div style="background:var(--bg-secondary);padding:16px;border-radius:8px;">
+                <h3>📊 통계</h3>
+                <div id="adminStats"></div>
+            </div>
+        </div>
+    `;
+    
+    adminLoadStats();
+}
+
+window.adminSearchUsers = async function() {
+    const query = document.getElementById('adminSearch').value.trim().toLowerCase();
+    const results = document.getElementById('adminResults');
+    if (!query) {
+        results.innerHTML = '<p style="color:var(--text-secondary);">검색어를 입력하세요</p>';
+        return;
+    }
+    results.innerHTML = '<p>검색 중...</p>';
+    try {
+        const snap = await get(ref(database, 'users'));
+        if (!snap.exists()) {
+            results.innerHTML = '<p>사용자 없음</p>';
+            return;
+        }
+        let html = '';
+        snap.forEach(child => {
+            const u = child.val();
+            if (u.username?.toLowerCase().includes(query) || u.name?.toLowerCase().includes(query)) {
+                html += `<div style="border:1px solid var(--border-color);padding:8px;margin:8px 0;border-radius:6px;">
+                    <div><strong>${u.name}</strong> (@${u.username})</div>
+                    <div style="font-size:12px;color:var(--text-secondary);">${u.email}</div>
+                    <button class="btn btn-secondary" onclick="adminDeleteUser('${child.key}')" style="background:#dc3545;color:white;margin-top:4px;">삭제</button>
+                </div>`;
+            }
+        });
+        results.innerHTML = html || '<p>결과 없음</p>';
+    } catch(e) {
+        results.innerHTML = '<p style="color:#dc3545;">오류 발생</p>';
+    }
+};
+
+window.adminDeleteUser = async function(uid) {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    try {
+        const snap = await get(ref(database, `users/${uid}`));
+        const u = snap.val();
+        await set(ref(database, `users/${uid}`), null);
+        await set(ref(database, `usernames/${u.username}`), null);
+        await set(ref(database, `emails/${sanitizeKey(u.email)}`), null);
+        alert('삭제 완료');
+        adminSearchUsers();
+    } catch(e) {
+        alert('오류: ' + e.message);
+    }
+};
+
+window.adminLoadGroups = async function() {
+    const div = document.getElementById('adminGroups');
+    div.innerHTML = '<p>로딩 중...</p>';
+    try {
+        const snap = await get(ref(database, 'groups'));
+        if (!snap.exists()) {
+            div.innerHTML = '<p>그룹 없음</p>';
+            return;
+        }
+        let html = '';
+        snap.forEach(child => {
+            const g = child.val();
+            const count = g.members ? Object.keys(g.members).length : 0;
+            html += `<div style="border:1px solid var(--border-color);padding:8px;margin:8px 0;border-radius:6px;">
+                <div><strong>${g.name}</strong> (${count}명)</div>
+                <button class="btn btn-secondary" onclick="adminDeleteGroup('${child.key}')" style="background:#dc3545;color:white;margin-top:4px;">삭제</button>
+            </div>`;
+        });
+        div.innerHTML = html;
+    } catch(e) {
+        div.innerHTML = '<p style="color:#dc3545;">오류 발생</p>';
+    }
+};
+
+window.adminDeleteGroup = async function(gid) {
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    try {
+        const snap = await get(ref(database, `groups/${gid}`));
+        const g = snap.val();
+        const members = g.members || {};
+        for (const uid of Object.keys(members)) {
+            await set(ref(database, `chats/${uid}/group_${gid}`), null);
+        }
+        await set(ref(database, `messages/group_${gid}`), null);
+        await set(ref(database, `groups/${gid}`), null);
+        alert('삭제 완료');
+        adminLoadGroups();
+    } catch(e) {
+        alert('오류: ' + e.message);
+    }
+};
+
+async function adminLoadStats() {
+    const div = document.getElementById('adminStats');
+    try {
+        const users = await get(ref(database, 'users'));
+        const groups = await get(ref(database, 'groups'));
+        const totalUsers = users.exists() ? Object.keys(users.val()).length : 0;
+        const totalGroups = groups.exists() ? Object.keys(groups.val()).length : 0;
+        div.innerHTML = `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+                <div style="background:var(--bg-primary);padding:12px;border-radius:6px;text-align:center;">
+                    <div style="font-size:24px;font-weight:700;">${totalUsers}</div>
+                    <div style="font-size:12px;color:var(--text-secondary);">전체 사용자</div>
+                </div>
+                <div style="background:var(--bg-primary);padding:12px;border-radius:6px;text-align:center;">
+                    <div style="font-size:24px;font-weight:700;">${totalGroups}</div>
+                    <div style="font-size:12px;color:var(--text-secondary);">전체 그룹</div>
+                </div>
+            </div>
+        `;
+    } catch(e) {
+        div.innerHTML = '<p style="color:#dc3545;">통계 로드 실패</p>';
+    }
+}
+
+// checkLoginStatus 후에 관리자 패널 초기화 호출 추가
+const originalCheckLoginStatus = checkLoginStatus;
+checkLoginStatus = function() {
+    originalCheckLoginStatus();
+    if (currentUser) {
+        setTimeout(initAdminPanel, 100);
+    }
+};
