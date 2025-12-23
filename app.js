@@ -817,7 +817,7 @@ const EMOJIS = [
 
 // Pagination state: show 25 emojis per page (5x5)
 let emojiPage = 0;
-const EMOJIS_PER_PAGE = 25;
+const EMOJIS_PER_PAGE = 10;
 let emojiFiltered = EMOJIS.slice();
 
 function renderEmojiPage() {
@@ -1816,3 +1816,4 @@ groupInfoModal.addEventListener('click', (e) => {
 
 // 페이지 로드 시 로그인 상태 확인
 checkLoginStatus();
+
