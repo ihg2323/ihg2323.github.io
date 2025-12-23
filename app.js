@@ -746,13 +746,19 @@ function setupMessageInput() {
                 // push image message
                 const messagesRefLocal = ref(database, `messages/${currentChatId}`);
                 const mRef = push(messagesRefLocal);
+                
+                // 메시지 전송 시 발신자는 자동으로 읽음 처리
+                const readByData = {};
+                readByData[currentUser.uid] = true;
+                
                 await set(mRef, {
                     type: 'image',
                     imageUrl: url,
                     filename: file.name,
                     senderId: currentUser.uid,
                     senderUsername: currentUser.username,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    readBy: readByData
                 });
 
                 // update last message for targets
@@ -922,12 +928,18 @@ async function sendMessage() {
     try {
         const messagesRefLocal = ref(database, `messages/${currentChatId}`);
         const mRef = push(messagesRefLocal);
+        
+        // 메시지 전송 시 발신자는 자동으로 읽음 처리
+        const readByData = {};
+        readByData[currentUser.uid] = true;
+        
         await set(mRef, {
             type: 'text',
             text: text,
             senderId: currentUser.uid,
             senderUsername: currentUser.username,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            readBy: readByData
         });
 
         // recent message 업데이트
@@ -971,6 +983,24 @@ async function sendMessage() {
 // ==================== 메시지 로드 (및 읽음 처리) ====================
 async function loadMessages() {
     if (!currentChatId) return;
+
+    // 그룹 채팅인 경우, 아직 멤버인지 확인
+    if (currentChatUser && currentChatUser.isGroup) {
+        const groupId = currentChatId.split('group_')[1];
+        const groupSnap = await get(ref(database, `groups/${groupId}`));
+        if (groupSnap.exists()) {
+            const members = groupSnap.val().members || {};
+            if (!members[currentUser.uid]) {
+                // 퇴출되었음 - 채팅방 닫기
+                alert('이 그룹에서 퇴출되었습니다.');
+                document.getElementById('chatArea').classList.remove('active');
+                currentChatId = null;
+                currentChatUser = null;
+                loadChatList();
+                return;
+            }
+        }
+    }
 
     // 기존 messages 리스너 해제
     if (messagesRef) {
@@ -1087,8 +1117,11 @@ async function loadMessages() {
                 if (currentChatUser.isGroup) {
                     // 미리 캐시된 그룹 멤버 정보 사용 (매번 DB 조회 안함!)
                     const total = groupMembers ? Object.keys(groupMembers).length : 0;
+                    // 발신자 자신도 자동으로 읽음 처리 (자기가 보낸 메시지니까)
                     const readCount = Object.keys(readBy).filter(k=>readBy[k]).length;
-                    readHtml = `<div class="read-indicator">${readCount}/${total} 읽음</div>`;
+                    // 발신자가 readBy에 없으면 +1 (자기 자신 포함)
+                    const actualReadCount = readBy[message.senderId] ? readCount : readCount + 1;
+                    readHtml = `<div class="read-indicator">${actualReadCount}/${total} 읽음</div>`;
                 } else {
                     const readByFriend = message.readBy && message.readBy[currentChatUser.id];
                     readHtml = `<div class="read-indicator">${readByFriend ? '읽음' : ''}</div>`;
@@ -1559,9 +1592,46 @@ async function openGroupInfo(groupId) {
                 <div>
                     ${g.creator === uid ? '<span style="font-size:12px;color:var(--text-secondary);margin-right:8px;">관리자</span>' : ''}
                     ${ (isCreator && uid !== currentUser.uid) ? `<button class="btn btn-secondary btn-remove" data-uid="${uid}">추방</button>` : '' }
+                    ${ (uid === currentUser.uid && !isCreator) ? `<button class="btn btn-secondary btn-leave">나가기</button>` : '' }
                 </div>
             `;
             groupMembersList.appendChild(div);
+        }
+
+        // bind leave button (자기 자신 나가기)
+        const leaveBtn = groupMembersList.querySelector('.btn-leave');
+        if (leaveBtn) {
+            leaveBtn.addEventListener('click', async () => {
+                if (!confirm('정말로 그룹에서 나가시겠습니까?')) return;
+                try {
+                    // remove self from group
+                    await set(ref(database, `groups/${groupId}/members/${currentUser.uid}`), null);
+                    await update(ref(database, `groups/${groupId}`), { updatedAt: Date.now() });
+                    // remove chat entry
+                    await set(ref(database, `chats/${currentUser.uid}/group_${groupId}`), null);
+                    // push system message
+                    const mRef = push(ref(database, `messages/group_${groupId}`));
+                    await set(mRef, {
+                        type: 'system',
+                        text: `${currentUser.name || currentUser.username}님이 그룹을 나갔습니다.`,
+                        timestamp: Date.now(),
+                        senderId: currentUser.uid
+                    });
+                    // close modal and chat
+                    groupInfoModal.classList.remove('active');
+                    if (currentChatId === `group_${groupId}`) {
+                        document.getElementById('chatArea').classList.remove('active');
+                        currentChatId = null;
+                        currentChatUser = null;
+                    }
+                    alert('그룹에서 나갔습니다.');
+                    loadChatList();
+                } catch (err) {
+                    console.error('나가기 실패', err);
+                    groupInfoError.textContent = '나가기 실패: ' + err.message;
+                    groupInfoError.classList.add('show');
+                }
+            });
         }
 
         // bind remove buttons
