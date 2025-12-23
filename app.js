@@ -2214,9 +2214,6 @@ groupInfoModal.addEventListener('click', (e) => {
     if (e.target === groupInfoModal) groupInfoModal.classList.remove('active');
 });
 
-// 페이지 로드 시 로그인 상태 확인
-checkLoginStatus();
-
 // ==================== 슈퍼 관리자 기능 추가 ====================
 // showMainApp 함수 실행 후 관리자 버튼 추가
 function initAdminPanel() {
@@ -2532,13 +2529,11 @@ async function adminLoadStats() {
 }
 
 // checkLoginStatus 후에 관리자 패널 초기화 호출 추가
-const originalCheckLoginStatus = checkLoginStatus;
-checkLoginStatus = function() {
-    originalCheckLoginStatus();
-    if (currentUser) {
-        setTimeout(initAdminPanel, 100);
-    }
-};
+// 페이지 로드 시 로그인 상태 확인 및 관리자 패널 초기화
+document.addEventListener('DOMContentLoaded', () => {
+    checkLoginStatus();
+    // 관리자 패널은 showMainApp에서 호출됨
+});
 
 // ==================== 추가 스타일 적용 ====================
 // 삭제 버튼 스타일 및 이모티콘 그리드 스타일
