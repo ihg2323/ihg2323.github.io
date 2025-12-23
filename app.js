@@ -342,6 +342,33 @@ function loadUserData() {
     // 표시할 텍스트 (username 첫글자 또는 이름 이니셜)
     const label = currentUser.username ? currentUser.username.charAt(0).toUpperCase() : (currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U');
     profileEl.textContent = label;
+    
+    // 계정 정지 상태 실시간 감시
+    const userStatusRef = ref(database, `users/${currentUser.uid}/suspended`);
+    onValue(userStatusRef, (snapshot) => {
+        if (snapshot.exists() && snapshot.val() === true) {
+            // 계정이 정지됨 - 즉시 로그아웃
+            alert('계정이 정지되었습니다. 로그아웃됩니다.');
+            forceLogout();
+        }
+    });
+}
+
+// 강제 로그아웃 함수
+async function forceLogout() {
+    try {
+        await updateUserStatus(false);
+        cleanupAllListeners();
+        localStorage.removeItem('chatAppUser');
+        currentUser = null;
+        showLogin();
+    } catch (error) {
+        console.error('강제 로그아웃 오류:', error);
+        // 오류가 있어도 로그아웃 진행
+        localStorage.removeItem('chatAppUser');
+        currentUser = null;
+        showLogin();
+    }
 }
 
 // ==================== 온라인 상태 업데이트 ====================
@@ -2313,10 +2340,15 @@ window.adminLoadAllUsers = async function() {
 
 // 계정 정지
 window.adminSuspendUser = async function(uid) {
-    if (!confirm('이 계정을 정지하시겠습니까? 정지된 계정은 로그인할 수 없습니다.')) return;
+    if (!confirm('이 계정을 정지하시겠습니까? 정지된 계정은 즉시 로그아웃되며 로그인할 수 없습니다.')) return;
     try {
-        await update(ref(database, `users/${uid}`), { suspended: true, suspendedAt: Date.now() });
-        alert('계정이 정지되었습니다.');
+        // 계정 정지 및 강제 오프라인 처리
+        await update(ref(database, `users/${uid}`), { 
+            suspended: true, 
+            suspendedAt: Date.now(),
+            online: false // 강제 오프라인
+        });
+        alert('계정이 정지되었습니다. 사용자가 로그인 중이었다면 즉시 로그아웃됩니다.');
         // 현재 보고 있는 목록 새로고침
         const searchInput = document.getElementById('adminSearch');
         if (searchInput && searchInput.value.trim()) {
