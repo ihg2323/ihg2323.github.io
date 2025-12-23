@@ -278,6 +278,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             return;
         }
         
+        // 계정 정지 확인
+        if (userData.suspended) {
+            errorDiv.textContent = '정지된 계정입니다. 관리자에게 문의하세요.';
+            errorDiv.classList.add('show');
+            return;
+        }
+        
         // 로그인 성공
         currentUser = {
             uid: userId,
@@ -2193,10 +2200,13 @@ async function showAdminPanel() {
         <div class="panel-header"><h2>🔐 관리자 패널</h2></div>
         <div class="panel-content" style="padding:16px;">
             <div style="background:var(--bg-secondary);padding:16px;border-radius:8px;margin-bottom:16px;">
-                <h3>👥 사용자 검색</h3>
+                <h3>👥 사용자 관리</h3>
                 <input type="text" id="adminSearch" placeholder="아이디 또는 이름" style="width:100%;padding:8px;margin:8px 0;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-primary);">
-                <button class="btn btn-primary" onclick="adminSearchUsers()" style="width:100%;">검색</button>
-                <div id="adminResults" style="margin-top:12px;"></div>
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                    <button class="btn btn-primary" onclick="adminSearchUsers()" style="flex:1;">검색</button>
+                    <button class="btn btn-secondary" onclick="adminLoadAllUsers()" style="flex:1;">전체 목록</button>
+                </div>
+                <div id="adminResults" style="margin-top:12px;max-height:500px;overflow-y:auto;"></div>
             </div>
             
             <div style="background:var(--bg-secondary);padding:16px;border-radius:8px;margin-bottom:16px;">
@@ -2233,16 +2243,107 @@ window.adminSearchUsers = async function() {
         snap.forEach(child => {
             const u = child.val();
             if (u.username?.toLowerCase().includes(query) || u.name?.toLowerCase().includes(query)) {
+                const isSuspended = u.suspended || false;
+                const statusBadge = isSuspended ? '<span style="background:#dc3545;color:white;padding:2px 8px;border-radius:4px;font-size:11px;margin-left:8px;">정지됨</span>' : '<span style="background:#28a745;color:white;padding:2px 8px;border-radius:4px;font-size:11px;margin-left:8px;">활성</span>';
+                const suspendBtn = isSuspended 
+                    ? `<button class="btn btn-secondary" onclick="adminUnsuspendUser('${child.key}')" style="background:#28a745;color:white;margin-top:4px;margin-right:4px;">정지 해제</button>`
+                    : `<button class="btn btn-secondary" onclick="adminSuspendUser('${child.key}')" style="background:#ff9800;color:white;margin-top:4px;margin-right:4px;">계정 정지</button>`;
+                
                 html += `<div style="border:1px solid var(--border-color);padding:8px;margin:8px 0;border-radius:6px;">
-                    <div><strong>${u.name}</strong> (@${u.username})</div>
+                    <div><strong>${u.name}</strong> (@${u.username}) ${statusBadge}</div>
                     <div style="font-size:12px;color:var(--text-secondary);">${u.email}</div>
-                    <button class="btn btn-secondary" onclick="adminDeleteUser('${child.key}')" style="background:#dc3545;color:white;margin-top:4px;">삭제</button>
+                    <div style="font-size:12px;color:var(--text-secondary);">가입: ${new Date(u.createdAt).toLocaleDateString()}</div>
+                    <div style="margin-top:8px;">
+                        ${suspendBtn}
+                        <button class="btn btn-secondary" onclick="adminDeleteUser('${child.key}')" style="background:#dc3545;color:white;margin-top:4px;">계정 삭제</button>
+                    </div>
                 </div>`;
             }
         });
         results.innerHTML = html || '<p>결과 없음</p>';
     } catch(e) {
         results.innerHTML = '<p style="color:#dc3545;">오류 발생</p>';
+    }
+};
+
+// 전체 사용자 목록 로드
+window.adminLoadAllUsers = async function() {
+    const results = document.getElementById('adminResults');
+    results.innerHTML = '<p>전체 사용자 불러오는 중...</p>';
+    try {
+        const snap = await get(ref(database, 'users'));
+        if (!snap.exists()) {
+            results.innerHTML = '<p>사용자 없음</p>';
+            return;
+        }
+        
+        const users = [];
+        snap.forEach(child => {
+            users.push({ id: child.key, ...child.val() });
+        });
+        
+        // 가입일 순으로 정렬 (최신순)
+        users.sort((a, b) => b.createdAt - a.createdAt);
+        
+        let html = `<div style="margin-bottom:8px;color:var(--text-secondary);">전체 ${users.length}명</div>`;
+        users.forEach(u => {
+            const isSuspended = u.suspended || false;
+            const statusBadge = isSuspended ? '<span style="background:#dc3545;color:white;padding:2px 8px;border-radius:4px;font-size:11px;margin-left:8px;">정지됨</span>' : '<span style="background:#28a745;color:white;padding:2px 8px;border-radius:4px;font-size:11px;margin-left:8px;">활성</span>';
+            const onlineStatus = u.online ? '<span style="color:#28a745;">● 온라인</span>' : '<span style="color:var(--text-secondary);">○ 오프라인</span>';
+            const suspendBtn = isSuspended 
+                ? `<button class="btn btn-secondary" onclick="adminUnsuspendUser('${u.id}')" style="background:#28a745;color:white;margin-top:4px;margin-right:4px;font-size:12px;padding:4px 8px;">정지 해제</button>`
+                : `<button class="btn btn-secondary" onclick="adminSuspendUser('${u.id}')" style="background:#ff9800;color:white;margin-top:4px;margin-right:4px;font-size:12px;padding:4px 8px;">계정 정지</button>`;
+            
+            html += `<div style="border:1px solid var(--border-color);padding:10px;margin:8px 0;border-radius:6px;${isSuspended ? 'opacity:0.7;' : ''}">
+                <div><strong>${u.name}</strong> (@${u.username}) ${statusBadge}</div>
+                <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">${u.email}</div>
+                <div style="font-size:12px;color:var(--text-secondary);">가입: ${new Date(u.createdAt).toLocaleDateString()} | ${onlineStatus}</div>
+                <div style="margin-top:8px;">
+                    ${suspendBtn}
+                    <button class="btn btn-secondary" onclick="adminDeleteUser('${u.id}')" style="background:#dc3545;color:white;margin-top:4px;font-size:12px;padding:4px 8px;">계정 삭제</button>
+                </div>
+            </div>`;
+        });
+        results.innerHTML = html;
+    } catch(e) {
+        console.error('전체 사용자 로드 오류:', e);
+        results.innerHTML = '<p style="color:#dc3545;">오류 발생</p>';
+    }
+};
+
+// 계정 정지
+window.adminSuspendUser = async function(uid) {
+    if (!confirm('이 계정을 정지하시겠습니까? 정지된 계정은 로그인할 수 없습니다.')) return;
+    try {
+        await update(ref(database, `users/${uid}`), { suspended: true, suspendedAt: Date.now() });
+        alert('계정이 정지되었습니다.');
+        // 현재 보고 있는 목록 새로고침
+        const searchInput = document.getElementById('adminSearch');
+        if (searchInput && searchInput.value.trim()) {
+            adminSearchUsers();
+        } else {
+            adminLoadAllUsers();
+        }
+    } catch(e) {
+        alert('오류: ' + e.message);
+    }
+};
+
+// 계정 정지 해제
+window.adminUnsuspendUser = async function(uid) {
+    if (!confirm('계정 정지를 해제하시겠습니까?')) return;
+    try {
+        await update(ref(database, `users/${uid}`), { suspended: false, suspendedAt: null });
+        alert('계정 정지가 해제되었습니다.');
+        // 현재 보고 있는 목록 새로고침
+        const searchInput = document.getElementById('adminSearch');
+        if (searchInput && searchInput.value.trim()) {
+            adminSearchUsers();
+        } else {
+            adminLoadAllUsers();
+        }
+    } catch(e) {
+        alert('오류: ' + e.message);
     }
 };
 
